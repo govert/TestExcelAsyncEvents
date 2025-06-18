@@ -2,6 +2,7 @@
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Office.Interop.Excel;
 using ExcelDna.Integration;
 
 public class Test : IExcelAddIn
@@ -11,14 +12,33 @@ public class Test : IExcelAddIn
         ExcelIntegration.RegisterUnhandledExceptionHandler(ex => "!!!Error " + ex);
 
         ExcelAsyncUtil.CalculationCanceled += CalculationCanceled;
+
+        // *** Normal approach - register for CalculationEnded event ***
         ExcelAsyncUtil.CalculationEnded += CalculationEnded;
+        // *** End of normal approach ***
+
+        //// *** Alternative approach - use Application.AfterCalculate ***
+        //(ExcelDnaUtil.Application as Application).AfterCalculate += CalculationEnded;
+        //// Must explicitly call CalculationEnded when Canceled to get same bahaviour as CalculationEnded event
+        //ExcelAsyncUtil.CalculationCanceled += CalculationEnded;
+        //// *** End of alternative approach ***
 
     }
 
     public void AutoClose()
     {
         ExcelAsyncUtil.CalculationCanceled -= CalculationCanceled;
+
+        // *** Normal approach - unregister for CalculationEnded event ***
         ExcelAsyncUtil.CalculationEnded -= CalculationEnded;
+        // *** End of normal approach ***
+
+        //// *** Alternative approach - use Application.AfterCalculate ***
+        //// Unregister the AfterCalculate event handler
+        //(ExcelDnaUtil.Application as Application).AfterCalculate -= CalculationEnded;
+        //// Unregister the CalculationCanceled event handler
+        //ExcelAsyncUtil.CalculationCanceled -= CalculationEnded;
+        //// *** End of alternative approach ***
     }
 
 
@@ -34,8 +54,11 @@ public class Test : IExcelAddIn
     public static void CalculationEnded()
     {
         Debug.Print("CalculationEnded called");
-        // Maybe we only need to set a new one when it was actually used...(when IsCanceled is true)?
-        _cancellation = new CancellationTokenSource();
+        if (_cancellation.IsCancellationRequested)
+        {
+            // Reset the cancellation token source to allow new calculations to run
+            _cancellation = new CancellationTokenSource();
+        }
     }
 
     // Wrapper functions - exported to Excel
